@@ -3,6 +3,7 @@ import os
 import json
 import pandas as pd
 from datetime import datetime
+import requests
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -34,7 +35,7 @@ with st.form("web_crawler_form"):
     prompt = st.text_input("Prompt", "Scrape latest laptops on Newegg with prices and ratings")
     url = st.text_input("Target URL", "https://www.newegg.com/laptops")
     filters = st.text_input("Filters (comma-separated)", "price, rating")
-    submitted = st.form_submit_button("💾 Save Config to Google Drive")
+    submitted = st.form_submit_button("💾 Save Config to Google Drive & Trigger Assistant")
 
     if submitted:
         config_data = {
@@ -52,10 +53,20 @@ with st.form("web_crawler_form"):
             drive_link = upload_to_drive(filename, filename)
             st.success("✅ Config uploaded to Google Drive!")
             st.markdown(f"[📄 View on Google Drive]({drive_link})")
-            st.markdown("---")
-            st.markdown("### 📤 Run Assistant in Colab")
-            colab_link = "https://colab.research.google.com/drive/YOUR_COLAB_NOTEBOOK_ID"
-            st.markdown(f"[🚀 Open Assistant Notebook in Colab]({colab_link})")
+
+            # Trigger the assistant webhook via Render API
+            api_url = "https://assistant-api-pzi8.onrender.com/run-assistant"
+            try:
+                res = requests.post(api_url, json=config_data)
+                if res.status_code == 200:
+                    st.success("📬 Assistant triggered successfully via webhook!")
+                    st.json(res.json())
+                else:
+                    st.error(f"❌ Webhook failed: {res.status_code}")
+                    st.text(res.text)
+            except Exception as e:
+                st.error(f"❌ Webhook connection error: {e}")
+
         except Exception as e:
             st.error(f"❌ Upload failed: {e}")
 
@@ -73,13 +84,6 @@ if latest_outputs:
     st.download_button("⬇️ Download CSV", df.to_csv(index=False), file_name=latest_file)
 else:
     st.info("No output files found yet. Run the assistant in Colab to generate results.")
-
-# --- Re-Run Last Config ---
-st.markdown("---")
-st.subheader("🔁 Re-Run Last Assistant")
-if st.button("Re-Run Last Config in Colab"):
-    colab_link = "https://colab.research.google.com/drive/YOUR_COLAB_NOTEBOOK_ID"
-    st.markdown(f"[🚀 Open Assistant Notebook in Colab]({colab_link})")
 
 # --- History Dashboard ---
 st.markdown("---")
