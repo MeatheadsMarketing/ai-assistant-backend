@@ -3,27 +3,45 @@ import os
 import json
 import pandas as pd
 from datetime import datetime
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
-# --- Config & Output Directory Setup ---
-CONFIG_DIR = "configs"
-OUTPUT_DIR = "outputs"
-os.makedirs(CONFIG_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
+# --- Streamlit Page Config ---
 st.set_page_config(page_title="🧠 Smart Web Crawler Assistant", layout="centered")
 st.title("🧠 Smart Web Crawler Assistant")
 
 st.markdown("""
 This interface lets you configure a smart web scraping task. 
-Submit your parameters below and save them as a config file for execution in Google Colab.
+Submit your parameters below and save them as a config file to your Google Drive.
 """)
 
-# --- Input Section ---
+# --- Upload Google Credentials ---
+st.sidebar.subheader("🔐 Upload Google Credentials")
+creds_file = st.sidebar.file_uploader("Upload your Google Drive client_secret.json", type="json")
+
+if creds_file:
+    with open("client_secret.json", "wb") as f:
+        f.write(creds_file.read())
+
+# --- Define Google Drive upload function ---
+def upload_to_drive(file_path, file_name):
+    creds = service_account.Credentials.from_service_account_file(
+        "client_secret.json",
+        scopes=["https://www.googleapis.com/auth/drive.file"]
+    )
+    service = build("drive", "v3", credentials=creds)
+    file_metadata = {"name": file_name, "parents": ["root"]}
+    media = MediaFileUpload(file_path, resumable=True)
+    uploaded_file = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+    return f"https://drive.google.com/file/d/{uploaded_file['id']}/view"
+
+# --- Input Form ---
 with st.form("web_crawler_form"):
     prompt = st.text_input("Prompt", "Scrape latest laptops on Newegg with prices and ratings")
     url = st.text_input("Target URL", "https://www.newegg.com/laptops")
     filters = st.text_input("Filters (comma-separated)", "price, rating")
-    submitted = st.form_submit_button("💾 Save Config")
+    submitted = st.form_submit_button("💾 Save Config to Google Drive")
 
     if submitted:
         config_data = {
@@ -33,26 +51,28 @@ with st.form("web_crawler_form"):
             "filters": filters,
             "timestamp": datetime.now().isoformat()
         }
-        filename = f"web_scraper_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        filepath = os.path.join(CONFIG_DIR, filename)
-        with open(filepath, "w") as f:
+        filename = f"smart_web_crawler_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(filename, "w") as f:
             json.dump(config_data, f, indent=4)
-        st.success(f"✅ Config saved as {filename}")
 
-# --- Load Existing Configs ---
+        try:
+            drive_link = upload_to_drive(filename, filename)
+            st.success(f"✅ Config uploaded to Google Drive!")
+            st.markdown(f"[📄 View on Google Drive]({drive_link})")
+
+            # Show Run in Colab link
+            st.markdown("---")
+            st.markdown("### 📤 Run Assistant in Colab")
+            colab_link = "https://colab.research.google.com/drive/YOUR_COLAB_NOTEBOOK_ID"
+            st.markdown(f"[🚀 Open Assistant Notebook in Colab]({colab_link})")
+        except Exception as e:
+            st.error(f"❌ Upload failed: {e}")
+
+# --- Output Preview (Optional Local Preview) ---
 st.markdown("---")
-st.subheader("📂 Load Previous Config")
-config_files = sorted([f for f in os.listdir(CONFIG_DIR) if f.endswith('.json')], reverse=True)
-selected_config = st.selectbox("Select a saved config", config_files)
-
-if selected_config:
-    with open(os.path.join(CONFIG_DIR, selected_config), 'r') as f:
-        loaded_config = json.load(f)
-    st.code(json.dumps(loaded_config, indent=2), language='json')
-
-# --- Output Preview ---
-st.markdown("---")
-st.subheader("📄 Latest Output Preview")
+st.subheader("📄 Output Preview")
+OUTPUT_DIR = "outputs"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 latest_outputs = sorted([f for f in os.listdir(OUTPUT_DIR) if f.endswith('.csv')], reverse=True)
 
 if latest_outputs:
