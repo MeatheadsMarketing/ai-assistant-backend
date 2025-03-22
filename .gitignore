@@ -1,0 +1,13 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Output files
+outputs/
+*.csv
+*.json
+
+# Environment files
+.env
+.ipynb_checkpoints/
