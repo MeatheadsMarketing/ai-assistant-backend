@@ -1,3 +1,9 @@
 pandas
 requests
 beautifulsoup4
+
+streamlit
+pandas
+google-api-python-client
+google-auth
+google-auth-oauthlib
